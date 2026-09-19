@@ -1,16 +1,19 @@
 # Amazon SEO Article Agent (100% Free)
 
-ASIN দিয়ে Amazon প্রোডাক্ট ডেটা স্ক্র্যাপ করে, ফ্রি **Groq AI** (Llama 3.3 70B,
-সুপার ফাস্ট) দিয়ে SEO আর্টিকেল লিখে, WordPress-এ **Draft** হিসেবে সেভ করে দেয়।
-কোনো পেইড API/সার্ভিস নেই।
+ASIN দিয়ে Amazon প্রোডাক্ট ডেটা স্ক্র্যাপ করে, ফ্রি **Groq AI** (Llama 3.3 70B)
+দিয়ে SEO আর্টিকেল লিখে, প্রতিটা আর্টিকেলকে **এডিটেবল Word (.docx) ফাইল**
+হিসেবে তৈরি করে দেয়। কোনো WordPress কানেকশন লাগে না, কোনো পেইড API/সার্ভিস নেই।
 
 ## এটা কীভাবে কাজ করে
 1. তুমি `jobs.csv` ফাইলে ঠিক করে দাও — কোনটা `single` (১টা ASIN), কোনটা `vs` (২-৩টা ASIN)।
 2. GitHub Actions-এ ম্যানুয়ালি "Run workflow" চাপো।
 3. Agent প্রতিটা ASIN-এর পেজ থেকে টাইটেল, দাম, রেটিং, ছবি, ফিচার স্ক্র্যাপ করে।
 4. Groq (ফ্রি, খুবই দ্রুত) দিয়ে SEO-friendly আর্টিকেল লেখে।
-5. WordPress-এ Draft হিসেবে পোস্ট করে (কখনও Publish করে না)।
-6. কাজ শেষ → GitHub runner নিজে থেকেই বন্ধ হয়ে যায়। কোনো background চলতে থাকে না।
+5. প্রতিটা আর্টিকেল একটা আলাদা `.docx` (Word) ফাইলে সেভ করে — প্রোডাক্ট ছবিসহ,
+   হেডিং/বুলেট/টেবিল ফরম্যাট করা অবস্থায়, সরাসরি এডিট করা যায়।
+6. রান শেষে GitHub Actions-এর **Artifacts** সেকশন থেকে সব `.docx` ফাইল
+   একসাথে ZIP আকারে ডাউনলোড করা যায়।
+7. কাজ শেষ → GitHub runner নিজে থেকেই বন্ধ হয়ে যায়। কোনো background চলতে থাকে না।
 
 ## ⚠️ সত্যিটা জেনে রাখো (জরুরি)
 - Amazon ওদের পেজ স্ক্র্যাপ করা পছন্দ করে না এবং মাঝে মাঝে bot ব্লক করে/CAPTCHA দেখায়,
@@ -21,8 +24,9 @@ ASIN দিয়ে Amazon প্রোডাক্ট ডেটা স্ক�
   স্বয়ংক্রিয় স্ক্র্যাপিং নিষিদ্ধ হতে পারে — নিজ দায়িত্বে ব্যবহার করো, এবং রিকোয়েস্টের
   ফ্রিকোয়েন্সি কম রাখাই ভালো (দিনে ৫-১০টা যথেষ্ট কম)।
 - Groq free tier-এর একটা daily request limit আছে (বড় মডেলে দিনে প্রায় ১,০০০
-  রিকোয়েস্ট, যা ৫-১০ আর্টিকেলের জন্য যথেষ্ট বেশি), ভবিষ্যতে limit বদলাতে পারে —
-  আপডেট থাকলে Groq Console ড্যাশবোর্ডে দেখা যাবে।
+  রিকোয়েস্ট, যা ৫-১০ আর্টিকেলের জন্য যথেষ্ট বেশি), ভবিষ্যতে limit বদলাতে পারে।
+- GitHub Actions Artifacts ৯০ দিন পর্যন্ত রাখা হয় (default), তারপর নিজে থেকেই
+  মুছে যায় — তাই রান শেষে সময়মতো ডাউনলোড করে নিজের কম্পিউটারে রাখাই ভালো।
 
 ## Setup (একবারই করতে হবে)
 
@@ -30,26 +34,26 @@ ASIN দিয়ে Amazon প্রোডাক্ট ডেটা স্ক�
 Public repo হলে GitHub Actions minutes সম্পূর্ণ ফ্রি ও আনলিমিটেড।
 Private repo হলেও মাসে ২০০০ মিনিট ফ্রি — যথেষ্ট বেশি এই কাজের জন্য।
 
+**গুরুত্বপূর্ণ:** এই ফোল্ডারের ভেতরের ফাইলগুলো (README.md, main.py,
+scraper.py ইত্যাদি) সরাসরি repo-র **রুটে** থাকতে হবে — কোনো সাব-ফোল্ডারের
+ভেতরে না। ZIP আপলোড করলে extract করা ফোল্ডারের *ভেতরে* ঢুকে সব ফাইল
+সিলেক্ট করে আপলোড করো, ফোল্ডারটা নিজে না।
+
 ### ২. ফ্রি Groq API key নাও
 - যাও: https://console.groq.com/keys
 - Google/GitHub দিয়ে সাইনআপ করো (ফ্রি, কোনো কার্ড লাগে না)
 - "Create API Key" চাপো, নাম দাও (যেমন "article-agent")
 - জেনারেট হওয়া key (শুরুতে `gsk_`) কপি করে রাখো — এটা শুধু একবারই দেখাবে
 
-### ৩. WordPress Application Password বানাও
-- WP Admin → Users → তোমার প্রোফাইল → নিচে "Application Passwords"
-- একটা নাম দিয়ে (যেমন "article-agent") "Add New Application Password" চাপো
-- জেনারেট হওয়া password কপি করে রাখো (এটা শুধু একবারই দেখাবে)
-
-### ৪. GitHub repo-তে Secrets যোগ করো
+### ৩. GitHub repo-তে Secret যোগ করো
 Repo → Settings → Secrets and variables → Actions → "New repository secret"
 
-| Secret name       | Value                                   |
-|--------------------|------------------------------------------|
-| GROQ_API_KEY       | ধাপ ২ থেকে পাওয়া key (gsk_ দিয়ে শুরু)    |
-| WP_URL             | `https://yoursite.com` (শেষে `/` ছাড়া)  |
-| WP_USERNAME        | তোমার WordPress admin username           |
-| WP_APP_PASSWORD    | ধাপ ৩ থেকে পাওয়া password                |
+| Secret name    | Value                                 |
+|-----------------|-----------------------------------------|
+| GROQ_API_KEY    | ধাপ ২ থেকে পাওয়া key (gsk_ দিয়ে শুরু)  |
+
+শুধু এই **একটা** secret-ই লাগবে — WordPress-এর কোনো ইউজারনেম/পাসওয়ার্ড
+এখন আর দরকার নেই।
 
 ## প্রতিদিনের ব্যবহার
 
@@ -73,17 +77,22 @@ vs,budget blender comparison,B08P29T3WW;B0018UI4T6
 3. GitHub repo → **Actions** ট্যাব → "Generate Amazon Articles" workflow →
    **Run workflow** বাটন চাপো।
 
-4. কয়েক মিনিট পর WordPress Admin → Posts-এ গিয়ে দেখো — সব আর্টিকেল
-   **Draft** হিসেবে বসে আছে। রিভিউ করে, দরকার হলে এডিট করে, নিজে হাতে Publish করো।
+4. কয়েক মিনিট পর সেই run-এর পেজে নিচের দিকে **Artifacts** সেকশনে
+   "generated-articles" নামে একটা ZIP দেখাবে — ডাউনলোড করো।
 
-5. কাজ শেষ হয়ে গেলে GitHub Actions runner নিজে থেকেই বন্ধ হয়ে যাবে —
+5. ZIP extract করলে প্রতিটা আর্টিকেলের জন্য একটা করে `.docx` ফাইল পাবে
+   (যেমন `01_Best_Wireless_Earbuds.docx`)। এটা Word, Google Docs, বা
+   LibreOffice-এ খুলে এডিট করা যায়, তারপর চাইলে WordPress-এ (বা যেকোনো
+   জায়গায়) নিজে হাতে কপি-পেস্ট করে বসাতে পারবে।
+
+6. কাজ শেষ হয়ে গেলে GitHub Actions runner নিজে থেকেই বন্ধ হয়ে যাবে —
    কিছু বন্ধ করার দরকার নেই।
 
 ## যদি কোনো ASIN বার বার ফেইল হয়
 - সেই ASIN-টার Amazon পেজ ব্রাউজারে খুলে দেখো এটা এখনো available কিনা।
 - ২৪ ঘণ্টা পর আবার ট্রাই করো (temporary block হতে পারে)।
-- অথবা `scraper.py`-এর `scrape_asin(asin)` ফাংশন কল করে ম্যানুয়ালি একবার
-  local-এ টেস্ট করে দেখতে পারো (`python scraper.py B0XXXXXXXX`)।
+- `run_summary.json` (Artifacts-এই পাবে) খুলে দেখো কোন job-এ কী কারণে
+  ফেইল হয়েছে।
 
 ## ফাইল স্ট্রাকচার
 ```
@@ -92,7 +101,7 @@ amazon-article-agent/
 ├── jobs.csv            ← তুমি এডিট করবে প্রতিদিন
 ├── scraper.py           ← Amazon থেকে ডেটা আনে (Playwright)
 ├── llm_generator.py     ← Groq দিয়ে আর্টিকেল লেখে
-├── wp_publisher.py       ← WordPress-এ Draft পোস্ট করে
+├── doc_writer.py         ← আর্টিকেলকে .docx ফাইলে কনভার্ট করে
 ├── main.py               ← সব একসাথে চালায়
 └── requirements.txt
 ```
@@ -102,8 +111,6 @@ amazon-article-agent/
 pip install -r requirements.txt
 playwright install chromium --with-deps
 export GROQ_API_KEY=xxx
-export WP_URL=https://yoursite.com
-export WP_USERNAME=xxx
-export WP_APP_PASSWORD=xxx
 python main.py
+# output/ ফোল্ডারে .docx ফাইলগুলো পাবে
 ```
