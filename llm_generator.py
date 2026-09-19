@@ -20,7 +20,7 @@ import requests
 from scraper import Product
 
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME = "llama-3.3-70b-versatile"  # strong quality, free-tier friendly
+MODEL_NAME = "openai/gpt-oss-120b"  # llama-3.3-70b-versatile was decommissioned by Groq on Aug 16, 2026
 
 
 def _headers():
