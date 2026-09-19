@@ -1,0 +1,42 @@
+name: Generate Amazon Articles
+
+# Manual trigger only — you click "Run workflow" whenever you want.
+# Nothing runs on a schedule, so there's no "leave it running" cost.
+on:
+  workflow_dispatch: {}
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30   # safety cap so a stuck run can't burn minutes forever
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install Python dependencies
+        run: pip install -r requirements.txt
+
+      - name: Install Playwright browser
+        run: playwright install chromium --with-deps
+
+      - name: Run article generator
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          WP_URL: ${{ secrets.WP_URL }}
+          WP_USERNAME: ${{ secrets.WP_USERNAME }}
+          WP_APP_PASSWORD: ${{ secrets.WP_APP_PASSWORD }}
+        run: python main.py
+
+      - name: Upload run summary
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: run-summary
+          path: run_summary.json
+          if-no-files-found: ignore
