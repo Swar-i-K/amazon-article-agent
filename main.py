@@ -21,6 +21,7 @@ jobs.csv format:
   type,focus_keyword,asins
   single,best wireless earbuds under 50,B0CHWRXH8B
   vs,budget blender comparison,B08P29T3WW;B0018UI4T6
+  list,best window insulation kits for winter,ASIN1;ASIN2;...;ASIN10   (3-10 ASINs, ranked in this order)
 
 Failed ASINs/jobs are logged and skipped — they do not stop the rest of
 the run. A summary is printed (and written to run_summary.json) at the end.
@@ -33,7 +34,7 @@ import time
 from datetime import datetime, timezone
 
 from scraper import scrape_asin
-from llm_generator import generate_single_article, generate_vs_article
+from llm_generator import generate_list_article, generate_single_article, generate_vs_article
 from doc_writer import html_to_docx, safe_filename
 
 JOBS_FILE = "jobs.csv"
@@ -78,6 +79,10 @@ def run():
             print(f"  SKIP: 'vs' job must have 2-3 ASINs, got {len(asins)}")
             summary.append({"job": idx, "status": "skipped", "reason": "bad_asin_count"})
             continue
+        if job_type == "list" and not (3 <= len(asins) <= 10):
+            print(f"  SKIP: 'list' job must have 3-10 ASINs, got {len(asins)}")
+            summary.append({"job": idx, "status": "skipped", "reason": "bad_asin_count"})
+            continue
 
         # 1. Scrape
         products = []
@@ -91,7 +96,19 @@ def run():
             products.append(p)
             time.sleep(3)
 
-        if not all(p.ok for p in products):
+        skipped = []
+        if job_type == "list":
+            # Amazon often blocks a few pages. Keep the products that worked (in your order) if at least 3 did.
+            skipped = [p.asin for p in products if not p.ok]
+            products = [p for p in products if p.ok]
+            if skipped:
+                print(f"  NOTE: skipped {len(skipped)} product(s) that could not be read: {skipped}")
+            if len(products) < 3:
+                print("  FAILED: fewer than 3 products could be read. Skipping this job.")
+                summary.append({"job": idx, "status": "failed", "reason": "scrape_failed",
+                                 "asins": asins, "skipped_asins": skipped})
+                continue
+        elif not all(p.ok for p in products):
             summary.append({"job": idx, "status": "failed",
                              "reason": "scrape_failed",
                              "asins": asins})
@@ -101,6 +118,8 @@ def run():
         try:
             if job_type == "single":
                 article = generate_single_article(products[0], keyword)
+            elif job_type == "list":
+                article = generate_list_article(products, keyword)
             else:
                 article = generate_vs_article(products, keyword)
         except Exception as e:  # noqa: BLE001
@@ -114,12 +133,16 @@ def run():
             filename = safe_filename(article["title"], idx)
             out_path = os.path.join(OUTPUT_DIR, filename)
             image_urls = [p.image_url for p in products if p.image_url]
+            if job_type == "list":
+                image_urls = image_urls[:1]  # one picture at the top, not ten stacked ones
             html_to_docx(article["title"], article["html"], out_path, image_urls)
             print(f"  Saved: {out_path}")
             summary.append({
                 "job": idx, "status": "success",
                 "file": filename,
                 "title": article["title"],
+                **({"word_count": article["word_count"], "skipped_asins": skipped}
+                   if job_type == "list" else {}),
             })
         except Exception as e:  # noqa: BLE001
             print(f"  FAILED to save .docx: {e}")
