@@ -1,10 +1,10 @@
 type,focus_keyword,asins
-single,best air purifier for a bedroom,B01728NLRG
-single,best air purifier for a dust mites,B0DJG1731C
-single,best air purifier for mold spores,B08KPJ76RR
-single,best air purifier for allergies,B0CXJ97TV1
-single,best air purifier for smoke and odors,B0DY4S3HP2
-vs,best air purifier for a small room comparison,B01728NLRG;B0DJG1731C
-vs,best air purifier for a large room comparison,B08KPJ76RR;B0CXJ97TV1
-vs,best air purifier for a pet hair comparison,B0DJG1731C;B0DY4S3HP2
-list,best air purifiers for home,B01728NLRG;B0DJG1731C;B08KPJ76RR;B0CXJ97TV1;B0DY4S3HP2
+single,for a bedroom,B01728NLRG
+single,for a dust mites,B0DJG1731C
+single,for mold spores,B08KPJ76RR
+single,for allergies,B0CXJ97TV1
+single,for smoke and odors,B0DY4S3HP2
+vs,for a small room comparison,B01728NLRG;B0DJG1731C
+vs,for a large room comparison,B08KPJ76RR;B0CXJ97TV1
+vs,for a pet hair comparison,B0DJG1731C;B0DY4S3HP2
+list,for home,B01728NLRG;B0DJG1731C;B08KPJ76RR;B0CXJ97TV1;B0DY4S3HP2
