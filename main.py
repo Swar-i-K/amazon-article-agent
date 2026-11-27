@@ -53,7 +53,7 @@ def load_manual_products(path=MANUAL_DATA_FILE):
             title = (row.get("title") or "").strip()
             if not asin:
                 continue
-            if not re.fullmatch(r"B0[A-Z0-9]{8}", asin):
+            if not re.fullmatch(r"[A-Z0-9]{10}", asin):
                 print(f"  MANUAL DATA WARNING: invalid ASIN format '{asin}', ignoring row.")
                 continue
             if not title:
