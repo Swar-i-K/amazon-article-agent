@@ -112,9 +112,6 @@ def load_video_facts_product(asin, projects_dir=VIDEO_FACTS_DIR):
         if values:
             features.append(f"{key.replace('_', ' ').title()}:")
             features.extend(f"- {value}" for value in values)
-    notes = facts.get("notes")
-    if isinstance(notes, str) and notes.strip():
-        features.extend(["Additional supplied notes (use only relevant factual guidance):", notes.strip()])
     raw_url = str(facts.get("affiliate_url") or "").strip()
     url = raw_url if raw_url.startswith(("https://www.amazon.", "https://amazon.", "https://amzn.to/")) else f"https://www.amazon.com/dp/{asin}"
     return Product(asin=asin, title=title, features=features, url=url, ok=True, error=None)
