@@ -88,6 +88,33 @@ vs,budget blender comparison,B08P29T3WW;B0018UI4T6
 6. কাজ শেষ হয়ে গেলে GitHub Actions runner নিজে থেকেই বন্ধ হয়ে যাবে —
    কিছু বন্ধ করার দরকার নেই।
 
+## Manual product-data fallback (new)
+
+Amazon may block GitHub Actions even when the product page opens normally in your own browser. To keep an article job moving without guessing product facts, use `manual_data.csv`.
+
+- Add one row per ASIN you want to provide manually.
+- If an ASIN exists in `manual_data.csv`, the agent uses that row and does not request that ASIN from Amazon.
+- If there is no manual row, the agent tries the Amazon scraper as before.
+- A manual row must include the exact 10-character ASIN and product title. Other fields are optional.
+- Separate multiple feature bullets with a pipe character (`|`).
+- Enter only facts verified from the actual Amazon listing or another reliable product source. Leave unknown fields blank; the article writer is instructed not to invent missing prices, ratings, counts or specifications.
+
+CSV columns (keep this exact header):
+
+```csv
+asin,title,price,rating,review_count,image_url,features,url
+```
+
+Example row (illustrative format only — replace with verified product facts):
+
+```csv
+B01728NLRG,"Exact product title from listing",$29.99,4.5,1200,https://example.com/image.jpg,"Feature one|Feature two|Feature three",https://www.amazon.com/dp/B01728NLRG
+```
+
+You can manually enter only the ASIN and title; price, rating, review count, image and features can stay blank. Without at least a verified title, the agent will not use the row.
+
+**Workflow status is also corrected:** if no article is generated, the GitHub Actions run now exits with an error instead of showing a misleading green success. If at least one article is generated, successful documents are retained and the run completes.
+
 ## যদি কোনো ASIN বার বার ফেইল হয়
 - সেই ASIN-টার Amazon পেজ ব্রাউজারে খুলে দেখো এটা এখনো available কিনা।
 - ২৪ ঘণ্টা পর আবার ট্রাই করো (temporary block হতে পারে)।
