@@ -22,58 +22,132 @@ import requests
 from scraper import Product
 
 GROQ_ENDPOINT = "https://api.groq.com/openai/v1/chat/completions"
-MODEL_NAME = "openai/gpt-oss-120b"  # llama-3.3-70b-versatile was decommissioned by Groq on Aug 16, 2026
+GEMINI_ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models"
+MISTRAL_ENDPOINT = "https://api.mistral.ai/v1/chat/completions"
 
-# list articles: show price + rating columns in the quick-comparison table (same data the "vs" articles use).
+# Primary provider first; Gemini and Mistral are automatic fallbacks.
+GROQ_MODEL = os.environ.get("GROQ_MODEL", "openai/gpt-oss-120b")
+GEMINI_MODEL = os.environ.get("GEMINI_MODEL", "gemini-2.5-flash")
+MISTRAL_MODEL = os.environ.get("MISTRAL_MODEL", "mistral-small-latest")
+
+# GitHub Actions secrets expected: GROQ_API_KEY, GEMINI_API_KEY, MISTRAL_API_KEY.
+# Optional model overrides: GROQ_MODEL, GEMINI_MODEL, MISTRAL_MODEL.
 SHOW_PRICE_AND_RATING = True
-# optional: set this env var to your Associates tracking ID (e.g. mysite-20) to add ?tag= to the product links.
 ASSOCIATE_TAG_ENV = "AMAZON_ASSOCIATE_TAG"
 
 
-def _headers():
-    api_key = os.environ.get("GROQ_API_KEY")
-    if not api_key:
-        raise RuntimeError(
-            "GROQ_API_KEY environment variable not set. "
-            "Get a free key at https://console.groq.com/keys"
-        )
-    return {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-    }
+def _post_json(url: str, headers: dict, payload: dict) -> dict:
+    response = requests.post(url, headers=headers, json=payload, timeout=120)
+    response.raise_for_status()
+    return response.json()
 
 
-def _chat(prompt: str, temperature: float = 0.7, max_tokens: int = 2500) -> str:
-    """Calls the Groq chat completions endpoint and returns the text.
-    Waits and retries on rate limits (429) and temporary server errors, because a 10-product article
-    needs about a dozen calls in a row."""
+def _chat_groq(prompt: str, temperature: float, max_tokens: int) -> str:
+    key = os.environ.get("GROQ_API_KEY")
+    if not key:
+        raise RuntimeError("GROQ_API_KEY is not configured")
     payload = {
-        "model": MODEL_NAME,
+        "model": GROQ_MODEL,
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
         "max_tokens": max_tokens,
     }
-    last = ""
-    for attempt in range(6):
-        resp = requests.post(GROQ_ENDPOINT, headers=_headers(), json=payload, timeout=90)
-        if resp.status_code == 429 and "per day" in resp.text.lower():
-            raise RuntimeError("Groq daily limit reached for this model. Try again later (the limit resets "
-                               "on a rolling 24 hours). " + resp.text[:200])
-        if resp.status_code in (429, 500, 502, 503, 504) and attempt < 5:
+    last_error = None
+    # Keep retries short; if Groq is rate-limited, move on to the fallback providers.
+    for attempt in range(2):
+        try:
+            data = _post_json(
+                GROQ_ENDPOINT,
+                {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+                payload,
+            )
+            content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+            if content.strip():
+                return content.strip()
+            raise RuntimeError("Groq returned an empty response")
+        except Exception as exc:
+            last_error = exc
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            if status not in (429, 500, 502, 503, 504) or attempt == 1:
+                break
+            retry_after = getattr(exc.response, "headers", {}).get("Retry-After", "2")
             try:
-                wait = float(resp.headers.get("retry-after") or 0)
-            except ValueError:
-                wait = 0.0
-            wait = min(65.0, (wait or 8 + attempt * 8) + 1)
-            print(f"    Groq busy ({resp.status_code}), waiting {wait:.0f}s ...")
+                wait = min(5.0, max(1.0, float(retry_after)))
+            except (TypeError, ValueError):
+                wait = 2.0
+            print(f"    Groq temporarily unavailable (HTTP {status}); retrying in {wait:.0f}s.")
             time.sleep(wait)
+    raise RuntimeError(f"Groq failed: {last_error}")
+
+
+def _chat_gemini(prompt: str, temperature: float, max_tokens: int) -> str:
+    key = os.environ.get("GEMINI_API_KEY")
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+    url = f"{GEMINI_ENDPOINT}/{GEMINI_MODEL}:generateContent?key={key}"
+    payload = {
+        "contents": [{"role": "user", "parts": [{"text": prompt}]}],
+        "generationConfig": {
+            "temperature": temperature,
+            "maxOutputTokens": max_tokens,
+        },
+    }
+    data = _post_json(url, {"Content-Type": "application/json"}, payload)
+    candidates = data.get("candidates") or []
+    parts = (candidates[0].get("content") or {}).get("parts") or [] if candidates else []
+    content = "".join(part.get("text", "") for part in parts).strip()
+    if not content:
+        raise RuntimeError("Gemini returned an empty response")
+    return content
+
+
+def _chat_mistral(prompt: str, temperature: float, max_tokens: int) -> str:
+    key = os.environ.get("MISTRAL_API_KEY")
+    if not key:
+        raise RuntimeError("MISTRAL_API_KEY is not configured")
+    payload = {
+        "model": MISTRAL_MODEL,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    data = _post_json(
+        MISTRAL_ENDPOINT,
+        {"Authorization": f"Bearer {key}", "Content-Type": "application/json"},
+        payload,
+    )
+    content = (data.get("choices") or [{}])[0].get("message", {}).get("content") or ""
+    if not content.strip():
+        raise RuntimeError("Mistral returned an empty response")
+    return content.strip()
+
+
+def _chat(prompt: str, temperature: float = 0.7, max_tokens: int = 2500) -> str:
+    """Try Groq first, then Gemini, then Mistral; each provider is used only if its secret exists."""
+    providers = (
+        ("Groq", _chat_groq),
+        ("Gemini", _chat_gemini),
+        ("Mistral", _chat_mistral),
+    )
+    failures = []
+    for name, call in providers:
+        env_key = {"Groq": "GROQ_API_KEY", "Gemini": "GEMINI_API_KEY",
+                   "Mistral": "MISTRAL_API_KEY"}[name]
+        if not os.environ.get(env_key):
+            print(f"    {name} fallback skipped: {env_key} is not configured.")
             continue
-        resp.raise_for_status()
-        text = (resp.json()["choices"][0]["message"].get("content") or "").strip()
-        if text:
-            return text
-        last = "empty reply"
-    raise RuntimeError(f"Groq returned no text ({last})")
+        try:
+            print(f"    Trying {name}...")
+            result = call(prompt, temperature, max_tokens)
+            print(f"    Generated successfully with {name}.")
+            return result
+        except Exception as exc:
+            # Do not print request URLs or credentials; report provider and error only.
+            status = getattr(getattr(exc, "response", None), "status_code", None)
+            detail = f"HTTP {status}" if status else str(exc)
+            failures.append(f"{name}: {detail}")
+            print(f"    {name} failed ({detail}); trying next provider.")
+    raise RuntimeError("All configured LLM providers failed. " + " | ".join(failures))
 
 
 def _product_block(p: Product, label: str) -> str:
