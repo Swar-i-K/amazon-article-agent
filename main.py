@@ -11,7 +11,10 @@ import os
 import re
 import sys
 import time
+from pathlib import Path
 from datetime import datetime, timezone
+
+import yaml
 
 from scraper import Product, scrape_asin
 from llm_generator import generate_list_article, generate_single_article, generate_vs_article
@@ -19,6 +22,7 @@ from doc_writer import html_to_docx, safe_filename
 
 JOBS_FILE = "jobs.csv"
 MANUAL_DATA_FILE = "manual_data.csv"
+VIDEO_FACTS_DIR = Path("video-agent/projects")
 OUTPUT_DIR = "output"
 MAX_JOBS_PER_RUN = 10
 
@@ -82,20 +86,52 @@ def load_manual_products(path=MANUAL_DATA_FILE):
     return products
 
 
+def load_video_facts_product(asin, projects_dir=VIDEO_FACTS_DIR):
+    """Read product facts from amazon-video-agent/projects/<ASIN>/facts.yaml."""
+    facts_path = Path(projects_dir) / asin / "facts.yaml"
+    if not facts_path.is_file():
+        return None
+    with facts_path.open(encoding="utf-8") as f:
+        facts = yaml.safe_load(f) or {}
+    fact_asin = str(facts.get("asin") or "").strip().upper()
+    if fact_asin and fact_asin != asin:
+        raise ValueError(f"{facts_path}: facts.yaml ASIN {fact_asin} does not match job ASIN {asin}")
+    title = str(facts.get("product_name") or "").strip()
+    if not title:
+        raise ValueError(f"{facts_path}: product_name is required")
+    def lines(key):
+        value = facts.get(key) or []
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            raise ValueError(f"{facts_path}: {key} must be a YAML list")
+        return [str(item).strip() for item in value if str(item).strip()]
+    features = []
+    for key in ("manufacturer_claims", "specs", "pros", "cons", "not_for", "use_cases"):
+        values = lines(key)
+        if values:
+            features.append(f"{key.replace('_', ' ').title()}:")
+            features.extend(f"- {value}" for value in values)
+    raw_url = str(facts.get("affiliate_url") or "").strip()
+    url = raw_url if raw_url.startswith(("https://www.amazon.", "https://amazon.", "https://amzn.to/")) else f"https://www.amazon.com/dp/{asin}"
+    return Product(asin=asin, title=title, features=features, url=url, ok=True, error=None)
+
+
 def get_product(asin, manual_products):
-    """Prefer user-supplied verified facts; otherwise try Amazon scraping."""
+    """Prefer shared video-agent facts, then manual CSV, then Amazon scraping."""
+    video_product = load_video_facts_product(asin)
+    if video_product:
+        print(f"    USING VIDEO-AGENT facts.yaml: {video_product.title[:60]}...")
+        return video_product, "video_facts_yaml"
     if asin in manual_products:
         print(f"    USING MANUAL DATA: {manual_products[asin].title[:60]}...")
         return manual_products[asin], "manual"
-
     product = scrape_asin(asin)
     if product.ok:
         print(f"    SCRAPED: {product.title[:60]}...")
         return product, "scraped"
-
-    print(f"    SCRAPE FAILED ({product.error}); no manual facts found for {asin}.")
+    print(f"    SCRAPE FAILED ({product.error}); no facts.yaml or manual facts found for {asin}.")
     return product, "failed"
-
 
 def run():
     os.makedirs(OUTPUT_DIR, exist_ok=True)
