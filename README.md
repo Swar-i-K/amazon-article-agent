@@ -92,7 +92,7 @@ vs,budget blender comparison,B08P29T3WW;B0018UI4T6
 
 The article workflow checks out `Swar-i-K/amazon-video-agent` and reads `projects/<ASIN>/facts.yaml` for every ASIN in `jobs.csv`. No copying to `manual_data.csv` or CSV format change is needed. The job ASIN must match the project folder and the YAML `asin:` field.
 
-The generator uses `product_name`, `manufacturer_claims`, `specs`, `pros`, `cons`, `not_for`, `use_cases`, `notes`, and a valid Amazon `affiliate_url` when present. It does not import prices, ratings, or review counts. If a matching facts file exists, it is used as the source; missing facts are not filled by scraping. If no matching file exists, the workflow falls back to `manual_data.csv`, then the scraper.
+The generator uses `product_name`, `manufacturer_claims`, `specs`, `pros`, `cons`, `not_for`, `use_cases`, and a valid Amazon `affiliate_url` when present. It does not import prices, ratings, or review counts. If a matching facts file exists, it is used as the source; missing facts are not filled by scraping. If no matching file exists, the workflow falls back to `manual_data.csv`, then the scraper.
 
 ## Manual product-data fallback (new)
 
