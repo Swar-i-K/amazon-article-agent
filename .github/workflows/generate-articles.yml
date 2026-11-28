@@ -12,6 +12,13 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      - name: Checkout video agent product facts
+        uses: actions/checkout@v4
+        with:
+          repository: Swar-i-K/amazon-video-agent
+          ref: main
+          path: video-agent
+
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
